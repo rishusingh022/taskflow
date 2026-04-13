@@ -1,13 +1,13 @@
 -- Seed Users
 -- Password for all users: "password123"
--- bcrypt hash generated with cost 12
+-- bcrypt cost 12 (verified with golang.org/x/crypto/bcrypt)
 INSERT INTO users (id, name, email, password) VALUES
     ('d290f1ee-6c54-4b01-90e6-d701748f0851', 'Raju Kumar', 'test@example.com',
-     '$2a$12$wZkEwQ.YZ8vqRZx0JYnPOeHjWxqS8fCqPVw.6X9bLp/qLz4TjXMGa'),
+     '$2a$12$P.pGDer/fi9k1CaKXWTS5O.XSY5AMN0QbFm4lW1r6zZ5n3xDJXUi6'),
     ('d290f1ee-6c54-4b01-90e6-d701748f0852', 'Priya Sharma', 'priya@example.com',
-     '$2a$12$wZkEwQ.YZ8vqRZx0JYnPOeHjWxqS8fCqPVw.6X9bLp/qLz4TjXMGa'),
+     '$2a$12$P.pGDer/fi9k1CaKXWTS5O.XSY5AMN0QbFm4lW1r6zZ5n3xDJXUi6'),
     ('d290f1ee-6c54-4b01-90e6-d701748f0853', 'Amit Patel', 'amit@example.com',
-     '$2a$12$wZkEwQ.YZ8vqRZx0JYnPOeHjWxqS8fCqPVw.6X9bLp/qLz4TjXMGa')
+     '$2a$12$P.pGDer/fi9k1CaKXWTS5O.XSY5AMN0QbFm4lW1r6zZ5n3xDJXUi6')
 ON CONFLICT (email) DO NOTHING;
 
 -- Seed Projects
