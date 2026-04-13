@@ -38,7 +38,8 @@ func main() {
 	defer db.Close()
 
 	if err := database.RunMigrations(cfg.DatabaseURL); err != nil {
-		slog.Warn("migration issue", "error", err)
+		slog.Error("migrations failed", "error", err)
+		os.Exit(1)
 	}
 
 	// wire up dependencies

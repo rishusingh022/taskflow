@@ -1,0 +1,18 @@
+# Local env (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Go
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
