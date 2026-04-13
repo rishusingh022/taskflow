@@ -112,13 +112,7 @@
           "name": "A2 · List my projects",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects?page=1&limit=20",
-              "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
-              ]
-            },
+            "url": "{{tf_host}}/api/projects?page=1&limit=20",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         },
@@ -152,13 +146,7 @@
           "name": "A5 · List tasks (all)",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?page=1&limit=20",
-              "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
-              ]
-            },
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?page=1&limit=20",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         },
@@ -166,12 +154,7 @@
           "name": "A6 · List tasks — filter status=todo",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=todo",
-              "query": [
-                { "key": "status", "value": "todo", "description": "todo | in_progress | done" }
-              ]
-            },
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=todo",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         },
@@ -179,12 +162,7 @@
           "name": "A7 · List tasks — filter assignee (Priya)",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?assignee=d290f1ee-6c54-4b01-90e6-d701748f0852",
-              "query": [
-                { "key": "assignee", "value": "d290f1ee-6c54-4b01-90e6-d701748f0852", "description": "Priya's UUID" }
-              ]
-            },
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?assignee=d290f1ee-6c54-4b01-90e6-d701748f0852",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         },
@@ -376,13 +354,7 @@
           "name": "B9 · List tasks",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?page=1&limit=20",
-              "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
-              ]
-            },
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?page=1&limit=20",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         },
@@ -390,12 +362,7 @@
           "name": "B10 · List tasks — filter status=todo",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=todo",
-              "query": [
-                { "key": "status", "value": "todo" }
-              ]
-            },
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=todo",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         },
@@ -574,10 +541,7 @@
           "name": "E9 · Invalid status filter → 400",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=invalid",
-              "query": [{ "key": "status", "value": "invalid" }]
-            },
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=invalid",
             "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
           }
         }
