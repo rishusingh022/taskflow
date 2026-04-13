@@ -1,6 +1,7 @@
 -- Seed Users
 -- Password for all users: "password123"
 -- bcrypt cost 12 (verified with golang.org/x/crypto/bcrypt)
+-- DO UPDATE ensures password is always correct even if migration ran with old hash
 INSERT INTO users (id, name, email, password) VALUES
     ('d290f1ee-6c54-4b01-90e6-d701748f0851', 'Raju Kumar', 'test@example.com',
      '$2a$12$P.pGDer/fi9k1CaKXWTS5O.XSY5AMN0QbFm4lW1r6zZ5n3xDJXUi6'),
@@ -8,7 +9,7 @@ INSERT INTO users (id, name, email, password) VALUES
      '$2a$12$P.pGDer/fi9k1CaKXWTS5O.XSY5AMN0QbFm4lW1r6zZ5n3xDJXUi6'),
     ('d290f1ee-6c54-4b01-90e6-d701748f0853', 'Amit Patel', 'amit@example.com',
      '$2a$12$P.pGDer/fi9k1CaKXWTS5O.XSY5AMN0QbFm4lW1r6zZ5n3xDJXUi6')
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password;
 
 -- Seed Projects
 INSERT INTO projects (id, name, description, owner_id) VALUES
