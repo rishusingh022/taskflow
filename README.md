@@ -110,10 +110,6 @@ Schema is **PostgreSQL** only; changes are **SQL migrations**, not ORM auto-migr
 
 ## 3. Architecture decisions & operations
 
-### Optional notes outside this folder
-
-If your checkout includes a parent directory (e.g. portfolio root), you may find **`TASKFLOW_HLD.md`**, **`TASKFLOW_LLD.md`**, and **`TASKFLOW_CODE_WALKTHROUGH.md`** there — longer-form design and a guided code tour. They are not required to run the API.
-
 ### Code layout
 
 - **`cmd/server`:** process entry, wiring, HTTP server lifecycle
@@ -241,7 +237,7 @@ Collection variables: `tf_host`, `tf_token`, `tf_project_id`, `tf_task_id`, `tf_
 ## 9. What I’d do with more time
 
 - Integration tests + CI job on `docker compose`
-- CAPTCHA or proof-of-work on register in public-facing deployments
+- proof-of-work on register in public-facing deployments
 - OpenAPI spec checked into repo
 - Explicit project membership table (invite / role) instead of inferring access from assignee only
 - Separate read replicas / caching only if product justified
