@@ -100,6 +100,10 @@ func TestTaskService_Update(t *testing.T) {
 	taskRepo := newMockTaskRepo()
 	svc := NewTaskService(taskRepo, projRepo)
 
+	ownerID := uuid.New()
+	projID := uuid.New()
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
+
 	taskID := uuid.New()
 	status := model.StatusInProgress
 	taskRepo.tasks[taskID] = &model.Task{
@@ -107,11 +111,11 @@ func TestTaskService_Update(t *testing.T) {
 		Title:     "Original",
 		Status:    model.StatusTodo,
 		Priority:  model.PriorityMedium,
-		ProjectID: uuid.New(),
+		ProjectID: projID,
 	}
 
 	newTitle := "Updated Title"
-	updated, err := svc.Update(context.Background(), taskID, uuid.New(), model.UpdateTaskRequest{
+	updated, err := svc.Update(context.Background(), taskID, ownerID, model.UpdateTaskRequest{
 		Title:  &newTitle,
 		Status: &status,
 	})
@@ -123,6 +127,66 @@ func TestTaskService_Update(t *testing.T) {
 	}
 	if updated.Status != model.StatusInProgress {
 		t.Errorf("expected in_progress, got %s", string(updated.Status))
+	}
+}
+
+func TestTaskService_UpdateByAssignee(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewTaskService(taskRepo, projRepo)
+
+	ownerID := uuid.New()
+	assigneeID := uuid.New()
+	projID := uuid.New()
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
+
+	taskID := uuid.New()
+	newTitle := "Assignee edit"
+	taskRepo.tasks[taskID] = &model.Task{
+		ID:         taskID,
+		Title:      "Original",
+		Status:     model.StatusTodo,
+		Priority:   model.PriorityLow,
+		ProjectID:  projID,
+		AssigneeID: &assigneeID,
+	}
+
+	updated, err := svc.Update(context.Background(), taskID, assigneeID, model.UpdateTaskRequest{
+		Title: &newTitle,
+	})
+	if err != nil {
+		t.Fatalf("assignee should update: %v", err)
+	}
+	if updated.Title != newTitle {
+		t.Errorf("got %s", updated.Title)
+	}
+}
+
+func TestTaskService_UpdateForbiddenNonMember(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewTaskService(taskRepo, projRepo)
+
+	ownerID := uuid.New()
+	strangerID := uuid.New()
+	projID := uuid.New()
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
+
+	taskID := uuid.New()
+	newTitle := "Nope"
+	taskRepo.tasks[taskID] = &model.Task{
+		ID:        taskID,
+		Title:     "Original",
+		Status:    model.StatusTodo,
+		Priority:  model.PriorityMedium,
+		ProjectID: projID,
+	}
+
+	_, err := svc.Update(context.Background(), taskID, strangerID, model.UpdateTaskRequest{
+		Title: &newTitle,
+	})
+	if err != model.ErrForbidden {
+		t.Errorf("expected ErrForbidden, got %v", err)
 	}
 }
 
@@ -163,7 +227,7 @@ func TestTaskService_DeleteByProjectOwner(t *testing.T) {
 	}
 }
 
-func TestTaskService_DeleteByTaskCreator(t *testing.T) {
+func TestTaskService_DeleteByCreatorWhenNotOwnerForbidden(t *testing.T) {
 	projRepo := newMockProjectRepo()
 	taskRepo := newMockTaskRepo()
 	svc := NewTaskService(taskRepo, projRepo)
@@ -181,8 +245,8 @@ func TestTaskService_DeleteByTaskCreator(t *testing.T) {
 	}
 
 	err := svc.Delete(context.Background(), taskID, creatorID)
-	if err != nil {
-		t.Fatalf("task creator should be able to delete: %v", err)
+	if err != model.ErrForbidden {
+		t.Errorf("only project owner may delete; expected ErrForbidden, got %v", err)
 	}
 }
 
@@ -226,7 +290,7 @@ func TestTaskService_ListByProjectNotFound(t *testing.T) {
 	taskRepo := newMockTaskRepo()
 	svc := NewTaskService(taskRepo, projRepo)
 
-	_, _, err := svc.ListByProject(context.Background(), uuid.New(), model.TaskFilter{})
+	_, _, err := svc.ListByProject(context.Background(), uuid.New(), uuid.New(), model.TaskFilter{})
 	if err != model.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -237,14 +301,67 @@ func TestTaskService_ListByProjectPagination(t *testing.T) {
 	taskRepo := newMockTaskRepo()
 	svc := NewTaskService(taskRepo, projRepo)
 
+	ownerID := uuid.New()
 	projID := uuid.New()
-	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: uuid.New()}
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
 
 	// bounds clamping: page < 1, limit < 1
-	tasks, total, err := svc.ListByProject(context.Background(), projID, model.TaskFilter{Page: -1, Limit: 0})
+	tasks, total, err := svc.ListByProject(context.Background(), ownerID, projID, model.TaskFilter{Page: -1, Limit: 0})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	_ = tasks
 	_ = total
+}
+
+func TestTaskService_CreateForbiddenNonOwner(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewTaskService(taskRepo, projRepo)
+
+	ownerID := uuid.New()
+	otherID := uuid.New()
+	projID := uuid.New()
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
+
+	_, err := svc.Create(context.Background(), projID, otherID, model.CreateTaskRequest{
+		Title:    "Nope",
+		Priority: model.PriorityLow,
+	})
+	if err != model.ErrForbidden {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestTaskService_ListByProjectForbiddenNonMember(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewTaskService(taskRepo, projRepo)
+
+	ownerID := uuid.New()
+	strangerID := uuid.New()
+	projID := uuid.New()
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
+
+	_, _, err := svc.ListByProject(context.Background(), strangerID, projID, model.TaskFilter{})
+	if err != model.ErrForbidden {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestTaskService_ListByProjectAsAssignee(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewTaskService(taskRepo, projRepo)
+
+	ownerID := uuid.New()
+	assigneeID := uuid.New()
+	projID := uuid.New()
+	projRepo.projects[projID] = &model.Project{ID: projID, OwnerID: ownerID}
+	projRepo.GrantAssignee(projID, assigneeID)
+
+	_, _, err := svc.ListByProject(context.Background(), assigneeID, projID, model.TaskFilter{})
+	if err != nil {
+		t.Fatalf("assignee with task in project should list: %v", err)
+	}
 }

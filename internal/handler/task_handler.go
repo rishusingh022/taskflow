@@ -21,6 +21,7 @@ func NewTaskHandler(taskSvc *service.TaskService) *TaskHandler {
 }
 
 func (h *TaskHandler) ListByProject(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
 	projectID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid project id")
@@ -54,7 +55,7 @@ func (h *TaskHandler) ListByProject(w http.ResponseWriter, r *http.Request) {
 		filter.Limit = 20
 	}
 
-	tasks, total, err := h.taskSvc.ListByProject(r.Context(), projectID, filter)
+	tasks, total, err := h.taskSvc.ListByProject(r.Context(), userID, projectID, filter)
 	if err != nil {
 		handleServiceError(w, err)
 		return
@@ -101,7 +102,6 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid task id")
 		return
 	}
-	_ = userID // we don't restrict who can update, only delete is restricted
 
 	var req model.UpdateTaskRequest
 	if err := decodeJSON(r, &req); err != nil {

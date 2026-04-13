@@ -21,13 +21,20 @@ func NewTaskService(taskRepo TaskRepository, projectRepo ProjectRepository) *Tas
 	}
 }
 
-func (s *TaskService) ListByProject(ctx context.Context, projectID uuid.UUID, filter model.TaskFilter) ([]model.Task, int, error) {
+func (s *TaskService) ListByProject(ctx context.Context, userID, projectID uuid.UUID, filter model.TaskFilter) ([]model.Task, int, error) {
 	proj, err := s.projectRepo.FindByID(ctx, projectID)
 	if err != nil {
 		return nil, 0, err
 	}
 	if proj == nil {
 		return nil, 0, model.ErrNotFound
+	}
+	ok, err := s.projectRepo.UserHasProjectAccess(ctx, userID, projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !ok {
+		return nil, 0, model.ErrForbidden
 	}
 
 	if filter.Page < 1 {
@@ -47,6 +54,9 @@ func (s *TaskService) Create(ctx context.Context, projectID, userID uuid.UUID, r
 	}
 	if proj == nil {
 		return nil, model.ErrNotFound
+	}
+	if proj.OwnerID != userID {
+		return nil, model.ErrForbidden
 	}
 
 	var dueDate *time.Time
@@ -82,6 +92,21 @@ func (s *TaskService) Update(ctx context.Context, taskID, userID uuid.UUID, req 
 	}
 	if task == nil {
 		return nil, model.ErrNotFound
+	}
+
+	proj, err := s.projectRepo.FindByID(ctx, task.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if proj == nil {
+		return nil, model.ErrNotFound
+	}
+	allowed := proj.OwnerID == userID
+	if !allowed && task.AssigneeID != nil && *task.AssigneeID == userID {
+		allowed = true
+	}
+	if !allowed {
+		return nil, model.ErrForbidden
 	}
 
 	// apply partial updates
@@ -123,17 +148,14 @@ func (s *TaskService) Delete(ctx context.Context, taskID, userID uuid.UUID) erro
 		return model.ErrNotFound
 	}
 
-	// only project owner or task creator can delete
 	proj, err := s.projectRepo.FindByID(ctx, task.ProjectID)
 	if err != nil {
 		return err
 	}
 	if proj == nil {
-		// project was deleted — allow task creator to clean up
-		if task.CreatedBy != userID {
-			return model.ErrForbidden
-		}
-	} else if proj.OwnerID != userID && task.CreatedBy != userID {
+		return model.ErrNotFound
+	}
+	if proj.OwnerID != userID {
 		return model.ErrForbidden
 	}
 

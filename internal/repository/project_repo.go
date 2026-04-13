@@ -56,6 +56,21 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.Projec
 	return &proj, err
 }
 
+// UserHasProjectAccess reports whether the user may read project-scoped data:
+// project owner, or assignee on at least one task in the project.
+func (r *ProjectRepo) UserHasProjectAccess(ctx context.Context, userID, projectID uuid.UUID) (bool, error) {
+	var ok bool
+	err := r.db.GetContext(ctx, &ok, `
+		SELECT (
+			EXISTS (SELECT 1 FROM projects WHERE id = $1 AND owner_id = $2)
+			OR EXISTS (SELECT 1 FROM tasks WHERE project_id = $1 AND assignee_id = $2)
+		)`, projectID, userID)
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
 func (r *ProjectRepo) Create(ctx context.Context, proj *model.Project) error {
 	proj.ID = uuid.New()
 	query := `INSERT INTO projects (id, name, description, owner_id) VALUES ($1, $2, $3, $4) RETURNING created_at`

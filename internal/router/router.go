@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"time"
 
 	"taskflow/internal/handler"
 	"taskflow/internal/middleware"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 )
 
 func New(
@@ -38,12 +40,16 @@ func New(
 	})
 
 	r.Route("/api", func(r chi.Router) {
-		// public routes
-		r.Post("/auth/register", authHandler.Register)
-		r.Post("/auth/login", authHandler.Login)
-
-		// protected routes
+		// Public auth: stricter per-IP limit (bcrypt is expensive; slows credential stuffing).
 		r.Group(func(r chi.Router) {
+			r.Use(httprate.LimitByIP(30, time.Minute))
+			r.Post("/auth/register", authHandler.Register)
+			r.Post("/auth/login", authHandler.Login)
+		})
+
+		// Authenticated API: separate, higher cap (still bounded for DoS safety).
+		r.Group(func(r chi.Router) {
+			r.Use(httprate.LimitByIP(600, time.Minute))
 			r.Use(authMw.Authenticate)
 
 			r.Get("/projects", projectHandler.List)

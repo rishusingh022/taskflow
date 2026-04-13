@@ -1,0 +1,587 @@
+{
+  "info": {
+    "name": "TaskFlow API (local)",
+    "description": "Collection for the TaskFlow Go API.\n\n**Getting started**\n1. Point `tf_host` at your server (default `http://localhost:8080`).\n2. Run either the smoke folder or Flow A / B — login or register saves `tf_token` for you.\n3. Protected calls send `Authorization: Bearer {{tf_token}}`.\n\n**Seed login:** `test@example.com` / `password123`\n**Sample project (Website Redesign):** `a1b2c3d4-e5f6-7890-abcd-ef1234567890`\n\n**Rate limits (per IP):** register/login about 30/min; authenticated API about 600/min. If you script hundreds of logins you may see **429** — wait a minute and retry.\n\n**403 behaviour:** you only see a project (and its tasks/stats) if you own it or have at least one task assigned there. Priya is on some seed projects but not on “Internal Dashboard” — see Error folder E8c.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "tf_host",         "value": "http://localhost:8080", "description": "API base URL" },
+    { "key": "tf_token",        "value": "",                      "description": "JWT — auto-set by login/register" },
+    { "key": "tf_token_priya",  "value": "",                      "description": "JWT for priya@example.com — set by E8a" },
+    { "key": "tf_reg_email",    "value": "",                      "description": "Unique email for Flow B — set by prerequest" },
+    { "key": "tf_project_id",   "value": "",                      "description": "Project UUID — auto-set by Create Project" },
+    { "key": "tf_task_id",      "value": "",                      "description": "Task UUID — auto-set by Create Task" }
+  ],
+  "item": [
+    {
+      "name": "Smoke — health, login, list",
+      "description": "Three calls in order: health check, seeded login, then list projects. Handy right after `docker compose up`.",
+      "item": [
+        {
+          "name": "S1 · GET /health",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/health"
+          }
+        },
+        {
+          "name": "S2 · POST login (test@example.com)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Has token', () => pm.expect(j.token).to.be.a('string').and.not.empty);",
+                  "pm.collectionVariables.set('tf_token', j.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "S3 · GET /api/projects (Bearer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has data array', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Flow A — seeded user (Raju / test@example.com)",
+      "description": "Uses the demo account that ships with the migration seed. If login fails, reset the volume: `docker compose down -v` then bring the stack up again.",
+      "item": [
+        {
+          "name": "A0 · GET /health",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/health"
+          }
+        },
+        {
+          "name": "A1 · Login (seeded)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('tf_token', pm.response.json().token);",
+                  "  console.log('Token saved for seeded user');",
+                  "} else {",
+                  "  console.error('Login failed — run: docker compose down -v && docker compose up --build -d');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "A2 · List my projects",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "A3 · Get seeded project + tasks (Website Redesign)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('tf_project_id', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "A4 · Project stats",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/stats",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "A5 · List tasks (all)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "A6 · List tasks — filter status=todo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=todo",
+              "query": [
+                { "key": "status", "value": "todo", "description": "todo | in_progress | done" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "A7 · List tasks — filter assignee (Priya)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?assignee=d290f1ee-6c54-4b01-90e6-d701748f0852",
+              "query": [
+                { "key": "assignee", "value": "d290f1ee-6c54-4b01-90e6-d701748f0852", "description": "Priya's UUID" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "A8 · Patch seeded task (todo → in_progress)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('tf_task_id', 'b1c2d3e4-f5a6-7890-bcde-f12345678903');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "url": "{{tf_host}}/api/tasks/{{tf_task_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tf_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\",\n  \"priority\": \"high\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Flow B — new user (register → CRUD)",
+      "description": "Registers with a unique email each run, then walks through project and task lifecycle. Won’t collide with the seed users.",
+      "item": [
+        {
+          "name": "B1 · Register (unique email — safe to re-run)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const e = 'postman+' + Date.now() + '@example.com';",
+                  "pm.collectionVariables.set('tf_reg_email', e);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('tf_token', pm.response.json().token);",
+                  "  console.log('Registered as', pm.collectionVariables.get('tf_reg_email'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Runner\",\n  \"email\": \"{{tf_reg_email}}\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "B2 · Login (same user as B1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('tf_token', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{tf_reg_email}}\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "B3 · Create project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('tf_project_id', pm.response.json().id);",
+                  "  console.log('Project created:', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/projects",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tf_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Project\",\n  \"description\": \"Created via Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "B4 · List projects",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "B5 · Get project + tasks",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "B6 · Project stats",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/stats",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "B7 · Patch project",
+          "request": {
+            "method": "PATCH",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tf_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Project (updated)\",\n  \"description\": \"Patched via Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "B8 · Create task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('tf_task_id', pm.response.json().id);",
+                  "  console.log('Task created:', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tf_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"First task\",\n  \"description\": \"Created via Postman\",\n  \"priority\": \"high\",\n  \"due_date\": \"2026-06-01\"\n}"
+            }
+          }
+        },
+        {
+          "name": "B9 · List tasks",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?page=1&limit=20",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "B10 · List tasks — filter status=todo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=todo",
+              "query": [
+                { "key": "status", "value": "todo" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "B11 · Patch task (todo → done)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{tf_host}}/api/tasks/{{tf_task_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tf_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"done\",\n  \"priority\": \"low\"\n}"
+            }
+          }
+        },
+        {
+          "name": "B12 · Delete task",
+          "request": {
+            "method": "DELETE",
+            "url": "{{tf_host}}/api/tasks/{{tf_task_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "B13 · Delete project (+ all tasks)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{tf_host}}/api/projects/{{tf_project_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error samples",
+      "description": "Requests that should return 4xx (and how to demo 403 with two seed users).",
+      "item": [
+        {
+          "name": "E1 · Health",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/health"
+          }
+        },
+        {
+          "name": "E2 · No token → 401",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects"
+          }
+        },
+        {
+          "name": "E3 · Bad token → 401",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects",
+            "header": [{ "key": "Authorization", "value": "Bearer not.a.real.token" }]
+          }
+        },
+        {
+          "name": "E4 · Register — missing fields → 400",
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"notvalid\"\n}"
+            }
+          }
+        },
+        {
+          "name": "E5 · Register — duplicate email → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Again\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "E6 · Login — wrong password → 401",
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"wrongpassword\"\n}"
+            }
+          }
+        },
+        {
+          "name": "E7 · Unknown project → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects/00000000-0000-0000-0000-000000000000",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        },
+        {
+          "name": "E8a · Login Priya (for 403 test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('tf_token_priya', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{tf_host}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"priya@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "E8b · PATCH Website Redesign as Priya → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "url": "{{tf_host}}/api/projects/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tf_token_priya}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Should be forbidden\"\n}"
+            }
+          }
+        },
+        {
+          "name": "E8c · GET Internal Dashboard as Priya → 403",
+          "description": "Internal Dashboard is owned by Raju; Priya has no assigned tasks there, so she must not read the project.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{tf_host}}/api/projects/a1b2c3d4-e5f6-7890-abcd-ef1234567892",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token_priya}}" }]
+          }
+        },
+        {
+          "name": "E9 · Invalid status filter → 400",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{tf_host}}/api/projects/{{tf_project_id}}/tasks?status=invalid",
+              "query": [{ "key": "status", "value": "invalid" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{tf_token}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -19,6 +19,8 @@ type UserRepository interface {
 type ProjectRepository interface {
 	FindByUserAccess(ctx context.Context, userID uuid.UUID, page, limit int) ([]model.Project, int, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Project, error)
+	// UserHasProjectAccess is true if user owns the project or is assignee on at least one task in it.
+	UserHasProjectAccess(ctx context.Context, userID, projectID uuid.UUID) (bool, error)
 	Create(ctx context.Context, proj *model.Project) error
 	Update(ctx context.Context, proj *model.Project) error
 	Delete(ctx context.Context, id uuid.UUID) error

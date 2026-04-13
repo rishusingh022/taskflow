@@ -30,13 +30,20 @@ func (s *ProjectService) List(ctx context.Context, userID uuid.UUID, page, limit
 	return s.projectRepo.FindByUserAccess(ctx, userID, page, limit)
 }
 
-func (s *ProjectService) GetByID(ctx context.Context, projectID uuid.UUID) (*model.ProjectWithTasks, error) {
+func (s *ProjectService) GetByID(ctx context.Context, userID, projectID uuid.UUID) (*model.ProjectWithTasks, error) {
 	proj, err := s.projectRepo.FindByID(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	if proj == nil {
 		return nil, model.ErrNotFound
+	}
+	ok, err := s.projectRepo.UserHasProjectAccess(ctx, userID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, model.ErrForbidden
 	}
 
 	filter := model.TaskFilter{Page: 1, Limit: 100}
@@ -105,7 +112,22 @@ func (s *ProjectService) Delete(ctx context.Context, projectID, userID uuid.UUID
 	return s.projectRepo.Delete(ctx, projectID)
 }
 
-func (s *ProjectService) GetStats(ctx context.Context, projectID uuid.UUID) (*model.ProjectStats, error) {
+func (s *ProjectService) GetStats(ctx context.Context, userID, projectID uuid.UUID) (*model.ProjectStats, error) {
+	proj, err := s.projectRepo.FindByID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if proj == nil {
+		return nil, model.ErrNotFound
+	}
+	ok, err := s.projectRepo.UserHasProjectAccess(ctx, userID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, model.ErrForbidden
+	}
+
 	stats, err := s.projectRepo.GetStats(ctx, projectID)
 	if err != nil {
 		return nil, err

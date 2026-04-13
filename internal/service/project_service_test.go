@@ -12,18 +12,54 @@ import (
 // --- mock project repo ---
 
 type mockProjectRepo struct {
-	projects map[uuid.UUID]*model.Project
+	projects  map[uuid.UUID]*model.Project
+	assignees map[string]struct{} // projectID|userID → user is assignee on ≥1 task in project
 }
 
 func newMockProjectRepo() *mockProjectRepo {
-	return &mockProjectRepo{projects: make(map[uuid.UUID]*model.Project)}
+	return &mockProjectRepo{
+		projects:  make(map[uuid.UUID]*model.Project),
+		assignees: make(map[string]struct{}),
+	}
+}
+
+func mockProjUserKey(projectID, userID uuid.UUID) string {
+	return projectID.String() + "|" + userID.String()
+}
+
+// GrantAssignee marks userID as having at least one assigned task in projectID (for access mocks).
+func (m *mockProjectRepo) GrantAssignee(projectID, userID uuid.UUID) {
+	m.assignees[mockProjUserKey(projectID, userID)] = struct{}{}
+}
+
+func (m *mockProjectRepo) UserHasProjectAccess(ctx context.Context, userID, projectID uuid.UUID) (bool, error) {
+	p, ok := m.projects[projectID]
+	if !ok {
+		return false, nil
+	}
+	if p.OwnerID == userID {
+		return true, nil
+	}
+	_, ok = m.assignees[mockProjUserKey(projectID, userID)]
+	return ok, nil
 }
 
 func (m *mockProjectRepo) FindByUserAccess(ctx context.Context, userID uuid.UUID, page, limit int) ([]model.Project, int, error) {
+	seen := make(map[uuid.UUID]struct{})
 	var result []model.Project
 	for _, p := range m.projects {
 		if p.OwnerID == userID {
-			result = append(result, *p)
+			if _, s := seen[p.ID]; !s {
+				result = append(result, *p)
+				seen[p.ID] = struct{}{}
+			}
+			continue
+		}
+		if _, ok := m.assignees[mockProjUserKey(p.ID, userID)]; ok {
+			if _, s := seen[p.ID]; !s {
+				result = append(result, *p)
+				seen[p.ID] = struct{}{}
+			}
 		}
 	}
 	return result, len(result), nil
@@ -181,7 +217,7 @@ func TestProjectService_DeleteByOwner(t *testing.T) {
 	}
 
 	// should be gone
-	_, err = svc.GetByID(context.Background(), proj.ID)
+	_, err = svc.GetByID(context.Background(), ownerID, proj.ID)
 	if err != model.ErrNotFound {
 		t.Errorf("expected ErrNotFound after delete, got %v", err)
 	}
@@ -207,9 +243,43 @@ func TestProjectService_GetNotFound(t *testing.T) {
 	taskRepo := newMockTaskRepo()
 	svc := NewProjectService(projRepo, taskRepo)
 
-	_, err := svc.GetByID(context.Background(), uuid.New())
+	_, err := svc.GetByID(context.Background(), uuid.New(), uuid.New())
 	if err != model.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestProjectService_GetByIDForbiddenNonMember(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewProjectService(projRepo, taskRepo)
+
+	ownerID := uuid.New()
+	strangerID := uuid.New()
+	proj, _ := svc.Create(context.Background(), model.CreateProjectRequest{Name: "Private"}, ownerID)
+
+	_, err := svc.GetByID(context.Background(), strangerID, proj.ID)
+	if err != model.ErrForbidden {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestProjectService_GetByIDAsAssignee(t *testing.T) {
+	projRepo := newMockProjectRepo()
+	taskRepo := newMockTaskRepo()
+	svc := NewProjectService(projRepo, taskRepo)
+
+	ownerID := uuid.New()
+	assigneeID := uuid.New()
+	proj, _ := svc.Create(context.Background(), model.CreateProjectRequest{Name: "Collaboration"}, ownerID)
+	projRepo.GrantAssignee(proj.ID, assigneeID)
+
+	got, err := svc.GetByID(context.Background(), assigneeID, proj.ID)
+	if err != nil {
+		t.Fatalf("assignee should read project: %v", err)
+	}
+	if got.Project.ID != proj.ID {
+		t.Error("wrong project returned")
 	}
 }
 
@@ -221,7 +291,7 @@ func TestProjectService_GetStats(t *testing.T) {
 	ownerID := uuid.New()
 	proj, _ := svc.Create(context.Background(), model.CreateProjectRequest{Name: "Stats"}, ownerID)
 
-	stats, err := svc.GetStats(context.Background(), proj.ID)
+	stats, err := svc.GetStats(context.Background(), ownerID, proj.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -235,7 +305,7 @@ func TestProjectService_GetStatsNotFound(t *testing.T) {
 	taskRepo := newMockTaskRepo()
 	svc := NewProjectService(projRepo, taskRepo)
 
-	_, err := svc.GetStats(context.Background(), uuid.New())
+	_, err := svc.GetStats(context.Background(), uuid.New(), uuid.New())
 	if err != model.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}

@@ -70,13 +70,14 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProjectHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
 	projectID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid project id")
 		return
 	}
 
-	proj, err := h.projectSvc.GetByID(r.Context(), projectID)
+	proj, err := h.projectSvc.GetByID(r.Context(), userID, projectID)
 	if err != nil {
 		handleServiceError(w, err)
 		return
@@ -125,13 +126,14 @@ func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProjectHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
 	projectID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid project id")
 		return
 	}
 
-	stats, err := h.projectSvc.GetStats(r.Context(), projectID)
+	stats, err := h.projectSvc.GetStats(r.Context(), userID, projectID)
 	if err != nil {
 		handleServiceError(w, err)
 		return
